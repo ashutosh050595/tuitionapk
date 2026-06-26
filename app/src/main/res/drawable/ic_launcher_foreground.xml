@@ -4,28 +4,46 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     
-    <!-- Sophisticated, styled academic cap and certificate seal -->
-    <!-- Graduation Cap Board -->
+    <!-- Outer framing arc in bright orange -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,26 L90,44 L54,62 L18,44 Z" />
-        
-    <!-- Graduation Cap Skull -->
-    <path
-        android:fillColor="#E0E7FF"
-        android:pathData="M34,51.5 L34,68 C34,74 74,74 74,68 L74,51.5 L54,61.5 Z" />
-        
-    <!-- Graduation Cap Tassel -->
-    <path
-        android:fillColor="#F59E0B"
-        android:pathData="M80,49 L84,70 C84,72 82,74 80,74 C78,74 76,72 76,70 Z" />
+        android:fillColor="#FF8F00"
+        android:pathData="M54,10 C29.7,10 10,29.7 10,54 C10,78.3 29.7,98 54,98 C65.5,98 76.1,93.6 84.1,86.3 L81.1,83.1 C73.9,89.5 64.4,93.4 54,93.4 C32.2,93.4 14.6,75.8 14.6,54 C14.6,32.2 32.2,14.6 54,14.6 C75.8,14.6 93.4,32.2 93.4,54 C93.4,59.3 92.3,64.4 90.3,69.1 L94.6,71.2 C97.0,66.0 98.4,60.2 98.4,54 C98.4,29.7 78.7,10 54,10 Z" />
 
-    <!-- A small Checkmark seal signifying management / tuition attendance -->
-    <path
-        android:fillColor="#10B981"
-        android:pathData="M54,72 C58.42,72 62,68.42 62,64 C62,59.58 58.42,56 54,56 C49.58,56 46,59.58 46,64 C46,68.42 49.58,72 54,72 Z" />
-        
+    <!-- 1. Graduation Cap at the top (White & Orange) -->
+    <!-- Board -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M51.5,64 L49.5,62 L48.5,63 L51.5,66 L58.5,59 L57.5,58 Z" />
+        android:pathData="M54,20 L80,29.5 L54,39 L28,29.5 Z" />
+    <!-- Skull -->
+    <path
+        android:fillColor="#ECEFF1"
+        android:pathData="M39,32.5 L39,38 C39,43.5 69,43.5 69,38 L69,32.5 L54,37.8 Z" />
+    <!-- Tassel -->
+    <path
+        android:fillColor="#FF8F00"
+        android:pathData="M73,31.5 L76.5,44 C76.5,45.5 75.5,46.5 74.5,46.5 C73.5,46.5 72.5,45.5 72.5,44 Z" />
+
+    <!-- 2. Open Book pages (White) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,48.5 C46,43.5 33,43.5 24,46 L24,53 C33,50.5 46,50.5 54,55.5 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,48.5 C62,43.5 75,43.5 84,46 L84,53 C75,50.5 62,50.5 54,55.5 Z" />
+
+    <!-- 3. Stylized 'A' 'K' 'G' at the bottom -->
+    <!-- Letter A (White) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,80 L30,59 L35.5,59 L41.5,80 L36.5,80 L35.1,75 L30.4,75 L29,80 Z M31.3,71 L34.2,71 L32.7,64.5 Z" />
+
+    <!-- Letter K (Vibrant Orange) -->
+    <path
+        android:fillColor="#FF8F00"
+        android:pathData="M46,59 L51,59 L51,80 L46,80 Z M51,70 L58.5,59 L64.5,59 L56.5,70 Z M55.5,69 L64.5,80 L58.5,80 L51,70.5 Z" />
+
+    <!-- Letter G (White) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M78.5,62.5 C76,59.5 70,59.5 67,62.5 C64,65.5 64,73.5 67,76.5 C70,79.5 76,79.5 78.5,76.5 L78.5,70.5 L72,70.5 L72,66.5 L82.5,66.5 L82.5,78 C79,81.5 69.5,81.5 63.5,75.5 C59.5,70.5 59.5,65.5 63.5,60.5 C69.5,54.5 79.5,54.5 83.5,60.5 Z" />
 </vector>
