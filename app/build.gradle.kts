@@ -1,5 +1,6 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 import java.util.Base64
+import java.security.KeyStore
 
 plugins {
   alias(libs.plugins.android.application)
@@ -27,30 +28,6 @@ android {
       } catch (e: Exception) {
         println("Warning: Failed to decode debug.keystore.base64: ${e.message}")
       }
-    } else {
-      // If neither exists, generate a fresh debug.keystore on the fly to prevent build validation crash
-      try {
-        println("No debug.keystore or base64 backup found. Generating a fresh debug.keystore on the fly...")
-        val process = ProcessBuilder(
-          "keytool", "-genkeypair", "-v",
-          "-keystore", restoredDebugKeystore.absolutePath,
-          "-storepass", "android",
-          "-alias", "androiddebugkey",
-          "-keypass", "android",
-          "-keyalg", "RSA",
-          "-keysize", "2048",
-          "-validity", "10000",
-          "-dname", "CN=Android Debug,O=Android,C=US"
-        ).start()
-        val exitCode = process.waitFor()
-        if (exitCode == 0) {
-          println("Successfully generated fresh debug.keystore.")
-        } else {
-          println("Warning: keytool exit code $exitCode")
-        }
-      } catch (e: Exception) {
-        println("Warning: Failed to generate fresh debug.keystore: ${e.message}")
-      }
     }
   }
 
@@ -77,27 +54,49 @@ android {
           }
         }
       val keystoreFile = file(keystorePath)
+      
+      val storePass = System.getenv("STORE_PASSWORD").takeIf { !it.isNullOrEmpty() }
+        ?: (project.findProperty("signing.storePassword") as? String).takeIf { !it.isNullOrEmpty() }
+        ?: "tuition"
+      val keyAl = System.getenv("KEY_ALIAS").takeIf { !it.isNullOrEmpty() }
+        ?: (project.findProperty("signing.keyAlias") as? String).takeIf { !it.isNullOrEmpty() }
+        ?: "tuition"
+      val keyPass = System.getenv("KEY_PASSWORD").takeIf { !it.isNullOrEmpty() }
+        ?: (project.findProperty("signing.keyPassword") as? String).takeIf { !it.isNullOrEmpty() }
+        ?: "tuition"
+
+      var isKeystoreValid = false
       if (keystoreFile.exists()) {
+        try {
+          val keystore = KeyStore.getInstance("JKS")
+          keystoreFile.inputStream().use { fis: java.io.InputStream ->
+            keystore.load(fis, storePass.toCharArray())
+          }
+          isKeystoreValid = true
+        } catch (e: Exception) {
+          println("Warning: Keystore at ${keystoreFile.name} could not be loaded with storePassword: ${e.message}. Falling back to debug signing.")
+        }
+      }
+
+      if (isKeystoreValid) {
         storeFile = keystoreFile
-        storePassword = System.getenv("STORE_PASSWORD")
-          ?: (project.findProperty("signing.storePassword") as? String)
-          ?: "tuition"
-        keyAlias = System.getenv("KEY_ALIAS")
-          ?: (project.findProperty("signing.keyAlias") as? String)
-          ?: "tuition"
-        keyPassword = System.getenv("KEY_PASSWORD")
-          ?: (project.findProperty("signing.keyPassword") as? String)
-          ?: "tuition"
+        storePassword = storePass
+        keyAlias = keyAl
+        keyPassword = keyPass
       } else {
         // Fallback to the debug keystore if the release keystore is not available, avoiding build crash
-        storeFile = file("${rootDir}/debug.keystore")
+        val customDebugKeystore = file("${rootDir}/debug.keystore")
+        val defaultDebugKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
+        storeFile = if (customDebugKeystore.exists()) customDebugKeystore else defaultDebugKeystore
         storePassword = "android"
         keyAlias = "androiddebugkey"
         keyPassword = "android"
       }
     }
     create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
+      val customDebugKeystore = file("${rootDir}/debug.keystore")
+      val defaultDebugKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
+      storeFile = if (customDebugKeystore.exists()) customDebugKeystore else defaultDebugKeystore
       storePassword = "android"
       keyAlias = "androiddebugkey"
       keyPassword = "android"
