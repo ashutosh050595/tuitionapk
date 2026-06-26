@@ -807,21 +807,32 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
         val trimmedName = name.trim()
         val trimmedPin = pin.trim()
         
-        // Validation for tutor/admin with password "ashutosh" (or case-insensitive) or "admin"
-        if (trimmedPin == "ashutosh" || trimmedPin.lowercase() == "ashutosh" || trimmedPin == "admin") {
+        // Match user's explicit login details: email: gautam663@gmail.com / name "Ashutosh", password: Gautam@2012
+        val isEmailMatch = (trimmedName.lowercase() == "gautam663@gmail.com" || trimmedName.lowercase() == "ashutosh") && trimmedPin == "Gautam@2012"
+        val isDefaultMatch = (trimmedPin == "ashutosh" || trimmedPin.lowercase() == "ashutosh" || trimmedPin == "admin" || trimmedPin == "Gautam@2012")
+        
+        if (isEmailMatch || isDefaultMatch) {
+            val resolvedName = if (trimmedName.lowercase() == "gautam663@gmail.com") "Ashutosh" else trimmedName
+            
+            // Automatically pre-configure their backup credentials so automatic Supabase sync is immediately active!
+            sharedPrefs.edit()
+                .putString("backup_email", "gautam663@gmail.com")
+                .putString("backup_passcode", "Gautam@2012")
+                .apply()
+
             viewModelScope.launch {
                 val current = repository.getAppConfigDirect()
                 if (current != null) {
-                    repository.insertAppConfig(current.copy(tutorName = trimmedName))
+                    repository.insertAppConfig(current.copy(tutorName = resolvedName))
                 } else {
                     repository.insertAppConfig(
                         AppConfig(
                             id = 1,
-                            tutorName = trimmedName,
+                            tutorName = resolvedName,
                             tuitionName = "Ashutosh Tuition Class",
                             address = "A-24, Sector 15, Dwarka, New Delhi - 110075",
                             phone = "+91 98765 43210",
-                            email = "aditi.sharma@excelacademy.com",
+                            email = "gautam663@gmail.com",
                             receiptPrefix = "EXT",
                             nextReceiptNo = 1001
                         )
@@ -829,13 +840,13 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
             
-            _currentSession.value = UserSession.TeacherSession(trimmedName)
+            _currentSession.value = UserSession.TeacherSession(resolvedName)
             
             if (rememberMe) {
                 sharedPrefs.edit()
                     .putBoolean("logged_in", true)
                     .putString("logged_role", "teacher")
-                    .putString("teacher_name", trimmedName)
+                    .putString("teacher_name", resolvedName)
                     .apply()
             }
             return true

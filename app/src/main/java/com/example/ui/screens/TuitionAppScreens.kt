@@ -3841,8 +3841,8 @@ fun LoginScreen(viewModel: TuitionViewModel) {
                                 teacherName = it
                                 errorMessage = null
                             },
-                            label = { Text("Your Name") },
-                            placeholder = { Text("e.g. Ashutosh Gautam") },
+                            label = { Text("Name or Email") },
+                            placeholder = { Text("e.g. gautam663@gmail.com") },
                             leadingIcon = { Icon(Icons.Default.Person, contentDescription = "User Icon") },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -3859,7 +3859,7 @@ fun LoginScreen(viewModel: TuitionViewModel) {
                                 errorMessage = null
                             },
                             label = { Text("Passcode") },
-                            placeholder = { Text("Hint: ashutosh") },
+                            placeholder = { Text("e.g. Gautam@2012") },
                             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Key Icon") },
                             trailingIcon = {
                                 IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
@@ -4009,7 +4009,7 @@ fun LoginScreen(viewModel: TuitionViewModel) {
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "First login? Enter your custom welcome name and passcode 'ashutosh' to initialize.",
+                        text = "Tutor Sign In: Use email 'gautam663@gmail.com' and password 'Gautam@2012' for full access.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
