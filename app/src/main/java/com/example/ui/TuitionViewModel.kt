@@ -123,8 +123,8 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
                 repository.insertAppConfig(
                     AppConfig(
                         id = 1,
-                        tutorName = "Prof. Aditi Sharma",
-                        tuitionName = "Excel Home Tuition Academics",
+                        tutorName = "Ashutosh",
+                        tuitionName = "Ashutosh Tuition Class",
                         address = "A-24, Sector 15, Dwarka, New Delhi - 110075",
                         phone = "+91 98765 43210",
                         email = "aditi.sharma@excelacademy.com",
@@ -261,8 +261,8 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
     ): Long {
         val config = repository.getAppConfigDirect() ?: AppConfig(
             id = 1,
-            tutorName = "Prof. Aditi Sharma",
-            tuitionName = "Excel Home Tuition Academics",
+            tutorName = "Ashutosh",
+            tuitionName = "Ashutosh Tuition Class",
             address = "A-24, Sector 15, Dwarka, New Delhi - 110075",
             phone = "+91 98765 43210",
             email = "aditi.sharma@excelacademy.com",
@@ -818,7 +818,7 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
                         AppConfig(
                             id = 1,
                             tutorName = trimmedName,
-                            tuitionName = "Excel Home Tuition Academics",
+                            tuitionName = "Ashutosh Tuition Class",
                             address = "A-24, Sector 15, Dwarka, New Delhi - 110075",
                             phone = "+91 98765 43210",
                             email = "aditi.sharma@excelacademy.com",

@@ -43,6 +43,12 @@ import com.example.ui.SyncState
 import com.example.ui.EmailState
 import com.example.ui.UserSession
 import kotlinx.coroutines.launch
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import android.os.Build
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -65,6 +71,34 @@ fun MainAppContent(viewModel: TuitionViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
+    // Check and request Notification permission on Android 13+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Toast.makeText(context, "Notification permission granted", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Notifications are disabled. Enable them in Settings for tuition updates.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val currentSession by viewModel.currentSession.collectAsStateWithLifecycle()
+
+    LaunchedEffect(currentSession) {
+        if (currentSession !is UserSession.Splash) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val hasPermission = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+                
+                if (!hasPermission) {
+                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        }
+    }
+
     // Custom Reactive Navigation Stack
     val backStack = remember { mutableStateListOf<Screen>(Screen.Dashboard) }
     val currentScreen = backStack.lastOrNull() ?: Screen.Dashboard
@@ -94,7 +128,6 @@ fun MainAppContent(viewModel: TuitionViewModel) {
     val appConfig by viewModel.appConfig.collectAsStateWithLifecycle()
     val selectedDate by viewModel.selectedDate.collectAsStateWithLifecycle()
     val attendanceList by viewModel.attendanceForDate.collectAsStateWithLifecycle()
-    val currentSession by viewModel.currentSession.collectAsStateWithLifecycle()
     val activeHeadsUp by viewModel.activeHeadsUpNotification.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -2989,8 +3022,8 @@ fun SettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
-    var tutorName by remember(appConfig) { mutableStateOf(appConfig?.tutorName ?: "Prof. Aditi Sharma") }
-    var tuitionName by remember(appConfig) { mutableStateOf(appConfig?.tuitionName ?: "Excel Home Tuition Academics") }
+    var tutorName by remember(appConfig) { mutableStateOf(appConfig?.tutorName ?: "Ashutosh") }
+    var tuitionName by remember(appConfig) { mutableStateOf(appConfig?.tuitionName ?: "Ashutosh Tuition Class") }
     var address by remember(appConfig) { mutableStateOf(appConfig?.address ?: "A-24, Sector 15, Dwarka, Delhi") }
     var phone by remember(appConfig) { mutableStateOf(appConfig?.phone ?: "+91 98765 43210") }
     var email by remember(appConfig) { mutableStateOf(appConfig?.email ?: "aditi.sharma@excelacademy.com") }
@@ -3622,7 +3655,7 @@ fun SplashScreen(viewModel: TuitionViewModel) {
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "EXCEL ACADEMICS",
+                text = "AKG Classes",
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 2.sp
@@ -3633,7 +3666,7 @@ fun SplashScreen(viewModel: TuitionViewModel) {
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Enterprise Tuition Suite",
+                text = "Welcome to Ashutosh Tuition Class",
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = FontWeight.Medium,
                     letterSpacing = 1.sp
@@ -3724,7 +3757,7 @@ fun LoginScreen(viewModel: TuitionViewModel) {
             }
 
             Text(
-                text = "Welcome to Excel",
+                text = "Welcome to Ashutosh Tuition Class",
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-1).sp

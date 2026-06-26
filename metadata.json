@@ -1,5 +1,5 @@
 {
-  "name": "Tuition Manager",
+  "name": "AKG Classes",
   "description": "Polished and efficient Home Tuition Management app to track students, attendance, fees, and dues.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
