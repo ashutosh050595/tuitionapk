@@ -1,0 +1,80 @@
+name: Build & Sign Android APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # Allows manual triggering from the Actions tab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: '8.5'
+
+    - name: Build Release APK
+      run: gradle :app:assembleRelease
+
+    # Automatically generate a secure key and sign on-the-fly (No JKS required!)
+    - name: Generate Temporary Keystore and Sign APK
+      run: |
+        echo "Generating a secure on-the-fly signing keystore..."
+        
+        # 1. Generate keypair using keytool
+        keytool -genkeypair -v \
+          -keystore temp-release-key.jks \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -alias temp-key-alias \
+          -dname "CN=TuitionApp, OU=Development, O=AIStudio, L=Sandbox, S=CA, C=US" \
+          -storepass "temporarypassword123" \
+          -keypass "temporarypassword123"
+
+        # 2. Find the unsigned APK in build outputs
+        UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*-unsigned.apk" | head -n 1)
+        if [ -z "$UNSIGNED_APK" ]; then
+          echo "Error: Unsigned release APK not found!"
+          exit 1
+        fi
+        echo "Found unsigned APK: $UNSIGNED_APK"
+
+        # 3. Find apksigner in the Android SDK build-tools
+        APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -r | head -n 1)
+        if [ -z "$APKSIGNER" ]; then
+          echo "Error: apksigner utility not found!"
+          exit 1
+        fi
+        echo "Using apksigner: $APKSIGNER"
+
+        # 4. Sign the APK and verify it
+        SIGNED_APK="app/build/outputs/apk/release/tuition-app-signed.apk"
+        $APKSIGNER sign \
+          --ks temp-release-key.jks \
+          --ks-key-alias temp-key-alias \
+          --ks-pass pass:temporarypassword123 \
+          --key-pass pass:temporarypassword123 \
+          --out "$SIGNED_APK" \
+          "$UNSIGNED_APK"
+
+        $APKSIGNER verify "$SIGNED_APK"
+        echo "APK successfully self-signed!"
+
+    - name: Upload Signed APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: tuition-app-signed
+        path: |
+          app/build/outputs/apk/release/tuition-app-signed.apk
