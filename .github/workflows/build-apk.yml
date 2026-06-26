@@ -25,6 +25,10 @@ jobs:
         gradle-version: '9.3.1'
 
     - name: Build Release APK
+      env:
+        STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: gradle :app:assembleRelease
 
     - name: Package and Sign APK
