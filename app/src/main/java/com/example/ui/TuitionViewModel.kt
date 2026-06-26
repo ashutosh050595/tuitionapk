@@ -2,6 +2,11 @@ package com.example.ui
 
 import android.app.Application
 import android.content.Context
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
+import android.util.Base64
+import java.io.ByteArrayOutputStream
+import com.example.network.ResendAttachment
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.*
@@ -291,6 +296,13 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
         repository.insertAppConfig(
             config.copy(nextReceiptNo = config.nextReceiptNo + 1)
         )
+        
+        // Automatically send receipt email with PDF attachment to parents
+        val student = allStudents.value.find { it.id == studentId }
+        if (student != null && student.parentEmail.isNotBlank()) {
+            val savedTx = transaction.copy(id = newTxId)
+            sendEmailReceipt(student, savedTx)
+        }
         
         triggerAutoBackup()
         return newTxId
@@ -645,6 +657,117 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
         _emailState.value = EmailState.Idle
     }
 
+    fun generateReceiptPdfBase64(student: Student, transaction: FeeTransaction, appConfig: AppConfig?): String {
+        val pdfDocument = PdfDocument()
+        val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
+        val page = pdfDocument.startPage(pageInfo)
+        val canvas = page.canvas
+        
+        val paint = Paint()
+        val textPaint = Paint()
+        
+        // Header Accent Band
+        paint.color = android.graphics.Color.rgb(103, 80, 164)
+        canvas.drawRect(30f, 40f, 565f, 45f, paint)
+        
+        textPaint.isAntiAlias = true
+        textPaint.color = android.graphics.Color.BLACK
+        
+        // Tuition Center name
+        textPaint.textSize = 20f
+        textPaint.isFakeBoldText = true
+        val tuitionName = appConfig?.tuitionName ?: "Ashutosh Tuition Class"
+        canvas.drawText(tuitionName, 50f, 80f, textPaint)
+        
+        // Address and Contact details
+        textPaint.textSize = 10f
+        textPaint.isFakeBoldText = false
+        textPaint.color = android.graphics.Color.GRAY
+        val address = appConfig?.address ?: "A-24, Sector 15, Dwarka, New Delhi"
+        val contact = "Phone: ${appConfig?.phone ?: "+91 98765 43210"} | Email: ${appConfig?.email ?: "gautam663@gmail.com"}"
+        canvas.drawText("Address: $address", 50f, 100f, textPaint)
+        canvas.drawText(contact, 50f, 115f, textPaint)
+        
+        // Divider
+        paint.color = android.graphics.Color.LTGRAY
+        canvas.drawRect(30f, 130f, 565f, 131f, paint)
+        
+        // Receipt Header
+        textPaint.color = android.graphics.Color.rgb(103, 80, 164)
+        textPaint.textSize = 14f
+        textPaint.isFakeBoldText = true
+        canvas.drawText("FEE PAYMENT RECEIPT", 50f, 160f, textPaint)
+        
+        // Basic receipt metadata
+        textPaint.textSize = 12f
+        textPaint.color = android.graphics.Color.BLACK
+        textPaint.isFakeBoldText = false
+        canvas.drawText("Receipt No: ${transaction.receiptNumber}", 50f, 190f, textPaint)
+        canvas.drawText("Date: ${transaction.paymentDate}", 400f, 190f, textPaint)
+        
+        canvas.drawRect(30f, 210f, 565f, 211f, paint)
+        
+        var yPos = 240f
+        val lineSpacing = 25f
+        
+        fun drawRow(label: String, value: String) {
+            textPaint.isFakeBoldText = true
+            canvas.drawText(label, 50f, yPos, textPaint)
+            textPaint.isFakeBoldText = false
+            canvas.drawText(value, 200f, yPos, textPaint)
+            yPos += lineSpacing
+        }
+        
+        drawRow("Student Name:", student.name)
+        drawRow("Class / Grade:", student.className)
+        drawRow("Guardian Name:", student.guardianName ?: "N/A")
+        drawRow("Months Paid:", transaction.monthsPaid.joinToString(", "))
+        drawRow("Payment Mode:", transaction.paymentMode.replace("_", " ").uppercase())
+        if (!transaction.transactionRef.isNullOrBlank()) {
+            drawRow("Reference / UPI ID:", transaction.transactionRef)
+        }
+        
+        canvas.drawRect(30f, yPos, 565f, yPos + 1f, paint)
+        yPos += 30f
+        
+        // Amount highlights box
+        paint.color = android.graphics.Color.rgb(248, 250, 252)
+        canvas.drawRect(50f, yPos, 545f, yPos + 60f, paint)
+        
+        textPaint.textSize = 14f
+        textPaint.color = android.graphics.Color.rgb(51, 65, 85)
+        textPaint.isFakeBoldText = true
+        canvas.drawText("AMOUNT PAID:", 70f, yPos + 35f, textPaint)
+        
+        textPaint.textSize = 20f
+        textPaint.color = android.graphics.Color.rgb(16, 185, 129)
+        canvas.drawText("Rs. ${transaction.amount.toInt()}", 380f, yPos + 38f, textPaint)
+        
+        yPos += 90f
+        
+        // Authorization block & custom signature
+        textPaint.textSize = 10f
+        textPaint.color = android.graphics.Color.BLACK
+        textPaint.isFakeBoldText = false
+        canvas.drawText("Status: REGISTERED", 50f, yPos, textPaint)
+        canvas.drawText("Receipt email sent successfully", 50f, yPos + 15f, textPaint)
+        
+        val tutorName = appConfig?.tutorName ?: "Ashutosh"
+        canvas.drawText(tutorName, 400f, yPos, textPaint)
+        paint.color = android.graphics.Color.DKGRAY
+        canvas.drawRect(400f, yPos + 5f, 520f, yPos + 6f, paint)
+        canvas.drawText("Authorized Tutor Signature", 400f, yPos + 20f, textPaint)
+        
+        pdfDocument.finishPage(page)
+        
+        val outputStream = ByteArrayOutputStream()
+        pdfDocument.writeTo(outputStream)
+        pdfDocument.close()
+        
+        val bytes = outputStream.toByteArray()
+        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
+
     fun sendEmailReceipt(student: Student, transaction: FeeTransaction) {
         viewModelScope.launch {
             if (student.parentEmail.trim().isEmpty()) {
@@ -653,78 +776,88 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
             }
             _emailState.value = EmailState.Loading
             
-            val subject = "Tuition Fee Receipt: ${transaction.receiptNumber}"
+            val subject = "Fee Collected Receipt: ${transaction.receiptNumber} - ${student.name}"
+            
+            val tutorName = appConfig.value?.tutorName ?: "Ashutosh"
+            val tuitionName = appConfig.value?.tuitionName ?: "Ashutosh Tuition Class"
+            val phone = appConfig.value?.phone ?: "+91 98765 43210"
+            
             val htmlContent = """
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; color: #333;">
                     <div style="text-align: center; border-bottom: 2px solid #6750A4; padding-bottom: 15px; margin-bottom: 20px;">
-                        <h2 style="color: #6750A4; margin: 0;">FEE PAYMENT RECEIPT</h2>
-                        <p style="margin: 5px 0 0 0; font-size: 14px; color: #666;">Generated via Tuition Manager App</p>
+                        <h2 style="color: #6750A4; margin: 0;">FEE PAYMENT RECEIVED</h2>
+                        <p style="margin: 5px 0 0 0; font-size: 14px; color: #666;">$tuitionName</p>
                     </div>
                     
-                    <div style="margin-bottom: 20px;">
+                    <div style="font-size: 15px; line-height: 1.6; color: #444; margin-bottom: 20px;">
+                        <p>Dear Parent/Guardian,</p>
+                        <p>We have successfully collected the tuition fees for <strong>${student.name}</strong> (Class: ${student.className}). Thank you for the payment.</p>
+                        <p>Below is a summary of the transaction. A copy of the formal receipt has been attached as a PDF document to this email.</p>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px; background-color: #f9f9f9; padding: 15px; border-radius: 6px;">
                         <table style="width: 100%; border-collapse: collapse;">
                             <tr>
-                                <td style="padding: 5px 0; font-weight: bold; width: 120px;">Receipt No:</td>
-                                <td style="padding: 5px 0;">${transaction.receiptNumber}</td>
+                                <td style="padding: 6px 0; font-weight: bold; color: #555; width: 140px;">Receipt No:</td>
+                                <td style="padding: 6px 0; color: #333;">${transaction.receiptNumber}</td>
                             </tr>
                             <tr>
-                                <td style="padding: 5px 0; font-weight: bold;">Date:</td>
-                                <td style="padding: 5px 0;">${transaction.paymentDate}</td>
+                                <td style="padding: 6px 0; font-weight: bold; color: #555;">Date:</td>
+                                <td style="padding: 6px 0; color: #333;">${transaction.paymentDate}</td>
                             </tr>
                             <tr>
-                                <td style="padding: 5px 0; font-weight: bold;">Student Name:</td>
-                                <td style="padding: 5px 0;">${student.name}</td>
+                                <td style="padding: 6px 0; font-weight: bold; color: #555;">Student Name:</td>
+                                <td style="padding: 6px 0; color: #333; font-weight: bold;">${student.name}</td>
                             </tr>
                             <tr>
-                                <td style="padding: 5px 0; font-weight: bold;">Class:</td>
-                                <td style="padding: 5px 0;">${student.className}</td>
+                                <td style="padding: 6px 0; font-weight: bold; color: #555;">Months Covered:</td>
+                                <td style="padding: 6px 0; color: #6750A4; font-weight: bold;">${transaction.monthsPaid.joinToString(", ")}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px 0; font-weight: bold; color: #555;">Amount Paid:</td>
+                                <td style="padding: 6px 0; color: #2E7D32; font-weight: bold; font-size: 16px;">₹${transaction.amount.toInt()}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px 0; font-weight: bold; color: #555;">Payment Mode:</td>
+                                <td style="padding: 6px 0; color: #333;">${transaction.paymentMode.replace("_", " ").uppercase()}</td>
                             </tr>
                         </table>
                     </div>
                     
-                    <div style="background-color: #f9f9f9; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <thead>
-                                <tr style="border-bottom: 1px solid #ddd;">
-                                    <th style="text-align: left; padding-bottom: 8px; font-weight: bold;">Description</th>
-                                    <th style="text-align: right; padding-bottom: 8px; font-weight: bold;">Amount</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td style="padding: 10px 0;">Tuition Fees for Months: <strong style="color: #6750A4;">${transaction.monthsPaid.joinToString(", ")}</strong></td>
-                                    <td style="text-align: right; padding: 10px 0; font-weight: bold;">₹${transaction.amount}</td>
-                                </tr>
-                                <tr style="border-top: 2px solid #6750A4;">
-                                    <td style="padding: 10px 0; font-weight: bold;">TOTAL PAID:</td>
-                                    <td style="text-align: right; padding: 10px 0; font-weight: bold; color: #2E7D32; font-size: 18px;">₹${transaction.amount}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <div style="margin-bottom: 20px; font-size: 13px; color: #555;">
-                        <p><strong>Payment Mode:</strong> ${transaction.paymentMode.uppercase()}</p>
-                        ${if (!transaction.transactionRef.isNullOrBlank()) "<p><strong>Reference / UPI ID:</strong> ${transaction.transactionRef}</p>" else ""}
-                        ${if (!transaction.notes.isNullOrBlank()) "<p><strong>Notes:</strong> ${transaction.notes}</p>" else ""}
+                    <div style="font-size: 14px; color: #555; line-height: 1.5; margin-bottom: 20px;">
+                        <p>Best regards,<br/><strong>$tutorName</strong><br/>$tuitionName<br/>Phone: $phone</p>
                     </div>
                     
                     <div style="border-top: 1px solid #eee; padding-top: 15px; text-align: center; font-size: 12px; color: #888;">
-                        <p>This is an electronically generated receipt. Thank you for the payment!</p>
-                        <p>&copy; 2026 Tuition Manager System. All rights reserved.</p>
+                        <p>This is an automated system email notification with a formal PDF invoice attached.</p>
+                        <p>&copy; 2026 $tuitionName. All rights reserved.</p>
                     </div>
                 </div>
             """.trimIndent()
             
-            val result = repository.sendResendEmail(student.parentEmail, subject, htmlContent)
-            result.fold(
-                onSuccess = {
-                    _emailState.value = EmailState.Success("Receipt email sent successfully to ${student.parentEmail}")
-                },
-                onFailure = {
-                    _emailState.value = EmailState.Error("Failed to send receipt email: ${it.message}")
-                }
-            )
+            try {
+                val pdfBase64 = generateReceiptPdfBase64(student, transaction, appConfig.value)
+                val attachment = ResendAttachment(
+                    content = pdfBase64,
+                    filename = "Receipt_${transaction.receiptNumber}.pdf"
+                )
+                val result = repository.sendResendEmail(
+                    toEmail = student.parentEmail,
+                    subject = subject,
+                    htmlBody = htmlContent,
+                    attachments = listOf(attachment)
+                )
+                result.fold(
+                    onSuccess = {
+                        _emailState.value = EmailState.Success("Receipt email with PDF attachment sent successfully to ${student.parentEmail}")
+                    },
+                    onFailure = {
+                        _emailState.value = EmailState.Error("Failed to send receipt email with PDF attachment: ${it.message}")
+                    }
+                )
+            } catch (e: Exception) {
+                _emailState.value = EmailState.Error("Error generating PDF or sending email: ${e.message}")
+            }
         }
     }
 
@@ -804,15 +937,16 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun loginAsTeacher(name: String, pin: String, rememberMe: Boolean = false): Boolean {
-        val trimmedName = name.trim()
+        val trimmedName = name.trim().lowercase()
         val trimmedPin = pin.trim()
         
-        // Match user's explicit login details: email: gautam663@gmail.com / name "Ashutosh", password: Gautam@2012
-        val isEmailMatch = (trimmedName.lowercase() == "gautam663@gmail.com" || trimmedName.lowercase() == "ashutosh") && trimmedPin == "Gautam@2012"
-        val isDefaultMatch = (trimmedPin == "ashutosh" || trimmedPin.lowercase() == "ashutosh" || trimmedPin == "admin" || trimmedPin == "Gautam@2012")
+        // Match user's explicit login details (case-insensitive for convenience)
+        val isExactCredentials = (trimmedName == "gautam663@gmail.com") && trimmedPin.equals("Gautam@2012", ignoreCase = true)
+        val isFallbackTeacher = (trimmedName == "ashutosh" || trimmedName == "admin" || trimmedName.isBlank()) && 
+                (trimmedPin.equals("Gautam@2012", ignoreCase = true) || trimmedPin.lowercase() == "ashutosh" || trimmedPin == "admin")
         
-        if (isEmailMatch || isDefaultMatch) {
-            val resolvedName = if (trimmedName.lowercase() == "gautam663@gmail.com") "Ashutosh" else trimmedName
+        if (isExactCredentials || isFallbackTeacher) {
+            val resolvedName = "Ashutosh"
             
             // Automatically pre-configure their backup credentials so automatic Supabase sync is immediately active!
             sharedPrefs.edit()
@@ -838,6 +972,9 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
                         )
                     )
                 }
+                
+                // Real-time synchronization: Immediately restore saved data from Supabase!
+                repository.performSupabaseRestore("gautam663@gmail.com", "Gautam@2012")
             }
             
             _currentSession.value = UserSession.TeacherSession(resolvedName)
@@ -959,6 +1096,11 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
         repository.insertAppConfig(
             config.copy(nextReceiptNo = config.nextReceiptNo + 1)
         )
+
+        // Automatically send receipt email with PDF attachment to parents
+        if (student.parentEmail.isNotBlank()) {
+            sendEmailReceipt(student, savedTx)
+        }
 
         postNotification(
             title = "Fee Payment Successful",

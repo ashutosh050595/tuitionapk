@@ -3,6 +3,7 @@ package com.example.data
 import com.example.network.BackupRecord
 import com.example.network.NetworkClient
 import com.example.network.ResendEmailRequest
+import com.example.network.ResendAttachment
 import com.example.network.ConfigAndNotifications
 import com.squareup.moshi.Types
 import kotlinx.coroutines.flow.Flow
@@ -40,16 +41,16 @@ class TuitionRepository(private val tuitionDao: TuitionDao) {
     suspend fun insertAppConfig(config: AppConfig) = tuitionDao.insertAppConfig(config)
 
     // Supabase Cloud Backup & Sync Flow
-    suspend fun performSupabaseBackup(email: String, passcode: String): Result<Unit> {
+    suspend fun performSupabaseBackup(email: String, passcode: String): Result<Unit> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val supabaseService = NetworkClient.supabaseService 
-            ?: return Result.failure(Exception("Supabase service is not configured. Please verify your Supabase URL in environment variables."))
+            ?: return@withContext Result.failure(Exception("Supabase service is not configured. Please verify your Supabase URL in environment variables."))
         
         val apiKey = NetworkClient.getSupabaseKey()
         if (apiKey.isEmpty() || apiKey.startsWith("your-supabase")) {
-            return Result.failure(Exception("Supabase anon key is missing or is set to a placeholder."))
+            return@withContext Result.failure(Exception("Supabase anon key is missing or is set to a placeholder."))
         }
 
-        return try {
+        try {
             val students = tuitionDao.getAllStudentsDirect()
             val attendance = tuitionDao.getAllAttendanceDirect()
             val transactions = tuitionDao.getAllTransactionsDirect()
@@ -97,16 +98,16 @@ class TuitionRepository(private val tuitionDao: TuitionDao) {
         }
     }
 
-    suspend fun performSupabaseRestore(email: String, passcode: String): Result<Boolean> {
+    suspend fun performSupabaseRestore(email: String, passcode: String): Result<Boolean> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val supabaseService = NetworkClient.supabaseService 
-            ?: return Result.failure(Exception("Supabase service is not configured. Please verify your Supabase URL in environment variables."))
+            ?: return@withContext Result.failure(Exception("Supabase service is not configured. Please verify your Supabase URL in environment variables."))
         
         val apiKey = NetworkClient.getSupabaseKey()
         if (apiKey.isEmpty() || apiKey.startsWith("your-supabase")) {
-            return Result.failure(Exception("Supabase anon key is missing or is set to a placeholder."))
+            return@withContext Result.failure(Exception("Supabase anon key is missing or is set to a placeholder."))
         }
 
-        return try {
+        try {
             val authHeader = "Bearer $apiKey"
             val emailQuery = "eq.${email.trim().lowercase()}"
             val response = supabaseService.getBackup(apiKey, authHeader, emailQuery)
@@ -114,12 +115,12 @@ class TuitionRepository(private val tuitionDao: TuitionDao) {
             if (response.isSuccessful) {
                 val backups = response.body()
                 if (backups.isNullOrEmpty()) {
-                    return Result.success(false) // No backup found
+                    return@withContext Result.success(false) // No backup found
                 }
 
                 val record = backups.first()
                 if (record.passcode != passcode) {
-                    return Result.failure(Exception("Incorrect passcode! Please provide the correct passcode for this backup account."))
+                    return@withContext Result.failure(Exception("Incorrect passcode! Please provide the correct passcode for this backup account."))
                 }
 
                 val moshi = NetworkClient.moshi
@@ -181,7 +182,12 @@ class TuitionRepository(private val tuitionDao: TuitionDao) {
     }
 
     // Resend Email Helper
-    suspend fun sendResendEmail(toEmail: String, subject: String, htmlBody: String): Result<String> {
+    suspend fun sendResendEmail(
+        toEmail: String,
+        subject: String,
+        htmlBody: String,
+        attachments: List<ResendAttachment>? = null
+    ): Result<String> {
         val resendService = NetworkClient.resendService
             ?: return Result.failure(Exception("Resend service is not initialized."))
         
@@ -200,7 +206,8 @@ class TuitionRepository(private val tuitionDao: TuitionDao) {
                 from = fromEmail,
                 to = listOf(toEmail.trim()),
                 subject = subject,
-                html = htmlBody
+                html = htmlBody,
+                attachments = attachments
             )
             val authHeader = "Bearer $apiKey"
             val response = resendService.sendEmail(authHeader, request)

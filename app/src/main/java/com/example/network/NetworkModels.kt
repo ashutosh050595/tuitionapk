@@ -24,11 +24,18 @@ data class BackupRecord(
 )
 
 @JsonClass(generateAdapter = true)
+data class ResendAttachment(
+    val content: String,
+    val filename: String
+)
+
+@JsonClass(generateAdapter = true)
 data class ResendEmailRequest(
     val from: String,
     val to: List<String>,
     val subject: String,
-    val html: String
+    val html: String,
+    val attachments: List<ResendAttachment>? = null
 )
 
 @JsonClass(generateAdapter = true)

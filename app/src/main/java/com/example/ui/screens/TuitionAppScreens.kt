@@ -63,6 +63,7 @@ sealed class Screen {
     data class AddEditStudent(val studentId: Long? = null) : Screen()
     data class DepositFee(val studentId: Long? = null) : Screen()
     data class ReceiptDetail(val transactionId: Long) : Screen()
+    data class Ledger(val studentId: Long? = null) : Screen()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -255,6 +256,12 @@ fun MainAppContent(viewModel: TuitionViewModel) {
                     is Screen.ReceiptDetail -> ReceiptDetailScreen(
                         transactionId = targetScreen.transactionId,
                         viewModel = viewModel,
+                        onBack = { navigateBack() }
+                    )
+                    is Screen.Ledger -> LedgerScreen(
+                        viewModel = viewModel,
+                        selectedStudentId = targetScreen.studentId,
+                        onNavigate = { navigateTo(it) },
                         onBack = { navigateBack() }
                     )
                 }
@@ -798,7 +805,7 @@ fun DashboardScreen(
                     // Action 2: Mark Attendance
                     Card(
                         modifier = Modifier
-                            .weight(1.1f)
+                            .weight(1f)
                             .height(84.dp)
                             .clickable { onNavigate(Screen.Attendance) }
                             .testTag("btn_mark_attendance_dash"),
@@ -829,7 +836,14 @@ fun DashboardScreen(
                             )
                         }
                     }
-
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     // Action 3: Record Fee
                     Card(
                         modifier = Modifier
@@ -859,6 +873,41 @@ fun DashboardScreen(
                                 text = "Record Fee",
                                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                                 color = if (isDark) Color(0xFF81C784) else Color(0xFF2E7D32),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    // Action 4: Student Ledger
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(84.dp)
+                            .clickable { onNavigate(Screen.Ledger()) }
+                            .testTag("btn_student_ledger_dash"),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isDark) Color(0xFF0D47A1) else Color(0xFFE3F2FD)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.SpaceBetween,
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.List,
+                                contentDescription = null,
+                                tint = if (isDark) Color(0xFF90CAF9) else Color(0xFF1565C0),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Student Ledger",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (isDark) Color(0xFF90CAF9) else Color(0xFF1565C0),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1628,14 +1677,29 @@ fun StudentProfileScreen(
                     }
                 }
                 1 -> {
-                    // Fees transaction logs
-                    if (studentTransactions.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No fees paid yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column {
+                        Button(
+                            onClick = { onNavigate(Screen.Ledger(student.id)) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                                .testTag("btn_view_full_ledger"),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("View Full Payment Ledger", color = MaterialTheme.colorScheme.onPrimaryContainer, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
-                    } else {
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(studentTransactions) { tx ->
+                        
+                        // Fees transaction logs
+                        if (studentTransactions.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("No fees paid yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        } else {
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                                items(studentTransactions) { tx ->
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1675,6 +1739,7 @@ fun StudentProfileScreen(
                                 }
                             }
                         }
+                    }
                     }
                 }
                 2 -> {
@@ -2103,20 +2168,57 @@ fun AttendanceScreen(
                     )
                 }
                 
-                // Simple editable text input or simple switcher for prototype date
-                OutlinedTextField(
-                    value = selectedDate,
-                    onValueChange = { viewModel.setSelectedDate(it) },
-                    modifier = Modifier
-                        .width(150.dp)
-                        .testTag("attendance_date_input"),
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent
+                // Simple clickable row or button to trigger date dialog
+                val onSelectDateClick = {
+                    val currentCalendar = Calendar.getInstance()
+                    try {
+                        val parts = selectedDate.split("-")
+                        if (parts.size == 3) {
+                            currentCalendar.set(Calendar.YEAR, parts[0].toInt())
+                            currentCalendar.set(Calendar.MONTH, parts[1].toInt() - 1)
+                            currentCalendar.set(Calendar.DAY_OF_MONTH, parts[2].toInt())
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+
+                    val datePickerDialog = android.app.DatePickerDialog(
+                        context,
+                        { _, year, monthOfYear, dayOfMonth ->
+                            val formattedMonth = String.format(Locale.US, "%02d", monthOfYear + 1)
+                            val formattedDay = String.format(Locale.US, "%02d", dayOfMonth)
+                            val newDateStr = "$year-$formattedMonth-$formattedDay"
+                            viewModel.setSelectedDate(newDateStr)
+                        },
+                        currentCalendar.get(Calendar.YEAR),
+                        currentCalendar.get(Calendar.MONTH),
+                        currentCalendar.get(Calendar.DAY_OF_MONTH)
                     )
-                )
+                    datePickerDialog.datePicker.maxDate = System.currentTimeMillis()
+                    datePickerDialog.show()
+                }
+
+                OutlinedButton(
+                    onClick = onSelectDateClick,
+                    modifier = Modifier
+                        .testTag("attendance_date_picker_button"),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = selectedDate,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Change date",
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
 
@@ -2300,6 +2402,9 @@ fun FeesDuesScreen(
             Tab(selected = selectedSubTab == 1, onClick = { selectedSubTab = 1 }, modifier = Modifier.testTag("tab_fees_history")) {
                 Text("Payment Records", modifier = Modifier.padding(10.dp), fontWeight = FontWeight.Bold)
             }
+            Tab(selected = selectedSubTab == 2, onClick = { selectedSubTab = 2 }, modifier = Modifier.testTag("tab_fees_ledger")) {
+                Text("Student Ledger", modifier = Modifier.padding(10.dp), fontWeight = FontWeight.Bold)
+            }
         }
 
         Spacer(modifier = Modifier.height(14.dp))
@@ -2404,6 +2509,15 @@ fun FeesDuesScreen(
                         }
                     }
                 }
+            }
+            2 -> {
+                LedgerContent(
+                    students = students,
+                    duesList = duesList,
+                    transactions = transactions,
+                    initialStudentId = null,
+                    onNavigate = onNavigate
+                )
             }
         }
     }
@@ -2885,7 +2999,7 @@ fun ReceiptDetailScreen(
                         )
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "Aditi Sharma",
+                                text = appConfig?.tutorName ?: "Ashutosh",
                                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
                             )
                             Divider(color = Color(0xFF64748B), modifier = Modifier.width(100.dp))
@@ -2971,7 +3085,7 @@ fun ReceiptDetailScreen(
                             We have received ₹${transaction.amount.toInt()} with thanks from ${student?.guardianName} for student ${student?.name} (Class: ${student?.className}) towards fee payments for: *${transaction.monthsPaid.joinToString(", ")}*.
                             
                             Payment Mode: ${transaction.paymentMode.replace("_", " ").uppercase()}
-                            Tutor: ${appConfig?.tutorName ?: "Prof. Aditi Sharma"}
+                            Tutor: ${appConfig?.tutorName ?: "Ashutosh"}
                             
                             Thank you for your continuous support.
                         """.trimIndent()
@@ -3842,7 +3956,7 @@ fun LoginScreen(viewModel: TuitionViewModel) {
                                 errorMessage = null
                             },
                             label = { Text("Name or Email") },
-                            placeholder = { Text("e.g. gautam663@gmail.com") },
+                            placeholder = { Text("Enter your name or email") },
                             leadingIcon = { Icon(Icons.Default.Person, contentDescription = "User Icon") },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -3859,7 +3973,7 @@ fun LoginScreen(viewModel: TuitionViewModel) {
                                 errorMessage = null
                             },
                             label = { Text("Passcode") },
-                            placeholder = { Text("e.g. Gautam@2012") },
+                            placeholder = { Text("Enter passcode") },
                             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Key Icon") },
                             trailingIcon = {
                                 IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
@@ -3991,28 +4105,541 @@ fun LoginScreen(viewModel: TuitionViewModel) {
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Info",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LedgerScreen(
+    viewModel: TuitionViewModel,
+    selectedStudentId: Long?,
+    onNavigate: (Screen) -> Unit,
+    onBack: () -> Unit
+) {
+    val students by viewModel.allStudents.collectAsStateWithLifecycle()
+    val duesList by viewModel.studentDuesList.collectAsStateWithLifecycle()
+    val transactions by viewModel.allTransactions.collectAsStateWithLifecycle()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
                     Text(
-                        text = "Tutor Sign In: Use email 'gautam663@gmail.com' and password 'Gautam@2012' for full access.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        "STUDENT PAYMENT LEDGER",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                        color = MaterialTheme.colorScheme.onBackground
                     )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("btn_ledger_back")) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
+            )
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            LedgerContent(
+                students = students,
+                duesList = duesList,
+                transactions = transactions,
+                initialStudentId = selectedStudentId,
+                onNavigate = onNavigate
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LedgerContent(
+    students: List<Student>,
+    duesList: List<StudentDues>,
+    transactions: List<FeeTransaction>,
+    initialStudentId: Long?,
+    onNavigate: (Screen) -> Unit
+) {
+    var selectedStudentIdState by remember { mutableStateOf<Long?>(initialStudentId) }
+    var searchQuery by remember { mutableStateOf("") }
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // Horizontal row of student capsules at the top
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            item {
+                FilterChip(
+                    selected = selectedStudentIdState == null,
+                    onClick = { selectedStudentIdState = null },
+                    label = { Text("All Students", fontWeight = FontWeight.Bold) },
+                    modifier = Modifier.testTag("chip_all_students")
+                )
+            }
+            items(students) { student ->
+                FilterChip(
+                    selected = selectedStudentIdState == student.id,
+                    onClick = { selectedStudentIdState = student.id },
+                    label = { Text(student.name, fontWeight = FontWeight.Bold) },
+                    modifier = Modifier.testTag("chip_student_${student.id}")
+                )
+            }
+        }
+
+        Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+
+        val currentId = selectedStudentIdState
+        if (currentId == null) {
+            // "All Students" Master Ledger view
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                // Search bar
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search student by name or class...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("ledger_search_input"),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val filteredStudents = students.filter {
+                    it.name.contains(searchQuery, ignoreCase = true) ||
+                    it.className.contains(searchQuery, ignoreCase = true)
+                }
+
+                if (filteredStudents.isEmpty()) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text("No matching students found.")
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(filteredStudents) { student ->
+                            val dues = duesList.find { it.student.id == student.id }
+                            val totalPaid = transactions.filter { it.studentId == student.id }.sumOf { it.amount }
+                            
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedStudentIdState = student.id }
+                                    .testTag("ledger_row_${student.id}"),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1.2f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .background(
+                                                    brush = Brush.verticalGradient(
+                                                        colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
+                                                    ),
+                                                    shape = CircleShape
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                student.name.take(1).uppercase(),
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                student.name,
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                            Text(
+                                                "Class: ${student.className}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    Column(
+                                        horizontalAlignment = Alignment.End,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = "Paid: ₹${totalPaid.toInt()}",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = Color(0xFF10B981)
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        val dueAmount = dues?.dueAmount ?: 0.0
+                                        if (dueAmount > 0.0) {
+                                            Text(
+                                                text = "Due: ₹${dueAmount.toInt()}",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.ExtraBold),
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        } else {
+                                            Text(
+                                                text = "No Dues",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                                color = Color(0xFF10B981)
+                                            )
+                                        }
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowForward,
+                                        contentDescription = "Detail",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Specific Student Detailed Ledger View
+            val student = students.find { it.id == currentId }
+            if (student == null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Student not found.")
+                }
+            } else {
+                val dues = duesList.find { it.student.id == student.id }
+                val studentTx = transactions.filter { it.studentId == student.id }.sortedByDescending { it.paymentDate }
+                val totalPaid = studentTx.sumOf { it.amount }
+                val currentDues = dues?.dueAmount ?: 0.0
+                val totalCharged = totalPaid + currentDues
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Student Info Card
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = student.name.uppercase(),
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                                    Column {
+                                        Text("Class / Grade", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(student.className, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                    Column {
+                                        Text("Monthly Fee", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("₹${student.feePerMonth.toInt()}", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                    Column {
+                                        Text("Joining Date", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(student.joiningDate, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                }
+                                
+                                if (!student.guardianName.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Column {
+                                            Text("Guardian", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(student.guardianName ?: "", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text("Contact", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(student.phone, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // KPI Cards Grid (Total Charged, Total Paid, Outstanding Dues)
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Total Charged
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("Charged", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("₹${totalCharged.toInt()}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold))
+                                }
+                            }
+
+                            // Total Paid
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (isDark) Color(0xFF1B5E20) else Color(0xFFE8F5E9)),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("Paid to Date", style = MaterialTheme.typography.bodySmall, color = if (isDark) Color(0xFF81C784) else Color(0xFF2E7D32))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("₹${totalPaid.toInt()}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold, color = if (isDark) Color(0xFF81C784) else Color(0xFF2E7D32)))
+                                }
+                            }
+
+                            // Outstanding Dues
+                            Card(
+                                modifier = Modifier.weight(1.1f),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (currentDues > 0.0) {
+                                        if (isDark) Color(0xFFB71C1C) else Color(0xFFFFEBEE)
+                                    } else {
+                                        if (isDark) Color(0xFF1B5E20) else Color(0xFFE8F5E9)
+                                    }
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    val titleColor = if (currentDues > 0.0) {
+                                        if (isDark) Color(0xFFEF5350) else Color(0xFFC62828)
+                                    } else {
+                                        if (isDark) Color(0xFF81C784) else Color(0xFF2E7D32)
+                                    }
+                                    Text("Outstanding", style = MaterialTheme.typography.bodySmall, color = titleColor)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = if (currentDues > 0.0) "₹${currentDues.toInt()}" else "Fully Paid",
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold, color = titleColor)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Unpaid months badge card if dues exist
+                    if (currentDues > 0.0 && dues != null && dues.unpaidMonths.isNotEmpty()) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text("Pending Fee Months", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onErrorContainer)
+                                        Text(dues.unpaidMonths.joinToString(", "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Detailed Transactions list header
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "PAYMENT HISTORY",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            
+                            IconButton(onClick = { onNavigate(Screen.DepositFee(student.id)) }) {
+                                Icon(Icons.Default.AddCircle, contentDescription = "Collect Fee", tint = Color(0xFF10B981))
+                            }
+                        }
+                    }
+
+                    if (studentTx.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text("No payment transactions recorded yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Button(
+                                        onClick = { onNavigate(Screen.DepositFee(student.id)) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("Collect First Payment")
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        items(studentTx) { tx ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onNavigate(Screen.ReceiptDetail(tx.id)) }
+                                    .testTag("ledger_tx_row_${tx.id}"),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(8.dp)
+                                                        .background(Color(0xFF10B981), CircleShape)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "Receipt: ${tx.receiptNumber}",
+                                                    fontWeight = FontWeight.Bold,
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "Payment Date: ${tx.paymentDate}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                text = "₹${tx.amount.toInt()}",
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                                                color = Color(0xFF10B981)
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = tx.paymentMode.replace("_", " ").uppercase(),
+                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier
+                                                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(4.dp))
+                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Row(modifier = Modifier.fillMaxWidth()) {
+                                            Text("Months Paid: ", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(tx.monthsPaid.joinToString(", "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                                        }
+                                        if (!tx.transactionRef.isNullOrBlank()) {
+                                            Row(modifier = Modifier.fillMaxWidth()) {
+                                                Text("UPI/Ref ID: ", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(tx.transactionRef, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                                            }
+                                        }
+                                        if (!tx.notes.isNullOrBlank()) {
+                                            Row(modifier = Modifier.fillMaxWidth()) {
+                                                Text("Notes: ", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(tx.notes ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                                            }
+                                        }
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "View Receipt PDF",
+                                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowForward,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
