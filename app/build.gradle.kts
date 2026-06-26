@@ -57,13 +57,13 @@ android {
       
       val storePass = System.getenv("STORE_PASSWORD").takeIf { !it.isNullOrEmpty() }
         ?: (project.findProperty("signing.storePassword") as? String).takeIf { !it.isNullOrEmpty() }
-        ?: "tuition"
+        ?: "ashutosh"
       val keyAl = System.getenv("KEY_ALIAS").takeIf { !it.isNullOrEmpty() }
         ?: (project.findProperty("signing.keyAlias") as? String).takeIf { !it.isNullOrEmpty() }
         ?: "tuition"
       val keyPass = System.getenv("KEY_PASSWORD").takeIf { !it.isNullOrEmpty() }
         ?: (project.findProperty("signing.keyPassword") as? String).takeIf { !it.isNullOrEmpty() }
-        ?: "tuition"
+        ?: "ashutosh"
 
       var isKeystoreValid = false
       if (keystoreFile.exists()) {
