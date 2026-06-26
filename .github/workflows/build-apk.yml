@@ -3,7 +3,7 @@ name: Build & Sign Android APK
 on:
   push:
     branches: [ "main", "master" ]
-  workflow_dispatch: # Allows manual triggering from the Actions tab in GitHub
+  workflow_dispatch: # Allows manual triggering from the GitHub Actions tab
 
 jobs:
   build:
@@ -19,16 +19,68 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Setup Gradle
+    - name: Setup Gradle 9.3.1
       uses: gradle/actions/setup-gradle@v3
       with:
-        gradle-version: '8.10' # Stably runs and compiles Gradle tasks
+        gradle-version: '9.3.1'
 
-    - name: Build and Sign Release APK
+    - name: Build Release APK
       run: gradle :app:assembleRelease
 
-    - name: Upload Signed APK Artifact
+    - name: Package and Sign APK
+      run: |
+        echo "Checking built APK outputs..."
+        RELEASE_DIR="app/build/outputs/apk/release"
+        ls -la "$RELEASE_DIR" || true
+
+        # Find any APKs in the release directory
+        UNSIGNED_APK=$(find "$RELEASE_DIR" -name "*-unsigned.apk" | head -n 1)
+        SIGNED_APK=$(find "$RELEASE_DIR" -name "*.apk" ! -name "*-unsigned.apk" | head -n 1)
+
+        if [ -n "$UNSIGNED_APK" ]; then
+          echo "Found unsigned APK: $UNSIGNED_APK. Signing it now..."
+          
+          # 1. Generate keypair using keytool (available with JDK)
+          keytool -genkeypair -v \
+            -keystore temp-release-key.jks \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -alias temp-key-alias \
+            -dname "CN=TuitionApp, OU=Development, O=AIStudio, L=Sandbox, S=CA, C=US" \
+            -storepass "temporarypassword123" \
+            -keypass "temporarypassword123"
+
+          # 2. Find apksigner in the Android SDK build-tools
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -r | head -n 1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "Error: apksigner utility not found!"
+            exit 1
+          fi
+          echo "Using apksigner: $APKSIGNER"
+
+          # 3. Sign the APK
+          FINAL_APK="$RELEASE_DIR/tuition-app-signed.apk"
+          $APKSIGNER sign \
+            --ks temp-release-key.jks \
+            --ks-key-alias temp-key-alias \
+            --ks-pass pass:temporarypassword123 \
+            --key-pass pass:temporarypassword123 \
+            --out "$FINAL_APK" \
+            "$UNSIGNED_APK"
+
+          $APKSIGNER verify "$FINAL_APK"
+          echo "APK successfully signed and verified!"
+        elif [ -n "$SIGNED_APK" ]; then
+          echo "Found pre-signed APK: $SIGNED_APK. Copying to final destination..."
+          cp "$SIGNED_APK" "$RELEASE_DIR/tuition-app-signed.apk"
+        else
+          echo "Error: No APK found in $RELEASE_DIR"
+          exit 1
+        fi
+
+    - name: Upload Signed APK
       uses: actions/upload-artifact@v4
       with:
         name: tuition-app-signed
-        path: app/build/outputs/apk/release/*-release.apk
+        path: app/build/outputs/apk/release/tuition-app-signed.apk
