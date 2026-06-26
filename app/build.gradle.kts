@@ -27,6 +27,30 @@ android {
       } catch (e: Exception) {
         println("Warning: Failed to decode debug.keystore.base64: ${e.message}")
       }
+    } else {
+      // If neither exists, generate a fresh debug.keystore on the fly to prevent build validation crash
+      try {
+        println("No debug.keystore or base64 backup found. Generating a fresh debug.keystore on the fly...")
+        val process = ProcessBuilder(
+          "keytool", "-genkeypair", "-v",
+          "-keystore", restoredDebugKeystore.absolutePath,
+          "-storepass", "android",
+          "-alias", "androiddebugkey",
+          "-keypass", "android",
+          "-keyalg", "RSA",
+          "-keysize", "2048",
+          "-validity", "10000",
+          "-dname", "CN=Android Debug,O=Android,C=US"
+        ).start()
+        val exitCode = process.waitFor()
+        if (exitCode == 0) {
+          println("Successfully generated fresh debug.keystore.")
+        } else {
+          println("Warning: keytool exit code $exitCode")
+        }
+      } catch (e: Exception) {
+        println("Warning: Failed to generate fresh debug.keystore: ${e.message}")
+      }
     }
   }
 
