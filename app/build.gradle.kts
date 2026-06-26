@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Base64
 
 plugins {
   alias(libs.plugins.android.application)
@@ -13,6 +14,22 @@ android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
+  // Restores debug.keystore from debug.keystore.base64 dynamically if missing (e.g., in CI environments)
+  val restoredDebugKeystore = project.file("${rootDir}/debug.keystore")
+  if (!restoredDebugKeystore.exists()) {
+    val base64Keystore = project.file("${rootDir}/debug.keystore.base64")
+    if (base64Keystore.exists()) {
+      try {
+        val base64Content = base64Keystore.readText().trim()
+        val decodedBytes = Base64.getDecoder().decode(base64Content)
+        restoredDebugKeystore.writeBytes(decodedBytes)
+        println("Restored debug.keystore from base64 encoding.")
+      } catch (e: Exception) {
+        println("Warning: Failed to decode debug.keystore.base64: ${e.message}")
+      }
+    }
+  }
+
   defaultConfig {
     applicationId = "com.aistudio.tuitionmanager.kxmzpq"
     minSdk = 24
@@ -26,10 +43,19 @@ android {
   signingConfigs {
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      val keystoreFile = file(keystorePath)
+      if (keystoreFile.exists()) {
+        storeFile = keystoreFile
+        storePassword = System.getenv("STORE_PASSWORD") ?: ""
+        keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
+        keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+      } else {
+        // Fallback to the debug keystore if the release keystore is not available, avoiding build crash
+        storeFile = file("${rootDir}/debug.keystore")
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
