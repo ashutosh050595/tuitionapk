@@ -26,6 +26,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -95,6 +99,12 @@ fun MainAppContent(viewModel: TuitionViewModel) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         when (val session = currentSession) {
+            is UserSession.Splash -> {
+                SplashScreen(viewModel = viewModel)
+            }
+            is UserSession.LoggedOut -> {
+                LoginScreen(viewModel = viewModel)
+            }
             is UserSession.StudentSession -> {
                 StudentPortalMainScreen(
                     student = session.student,
@@ -102,7 +112,7 @@ fun MainAppContent(viewModel: TuitionViewModel) {
                     onLogout = { viewModel.logout() }
                 )
             }
-            else -> {
+            is UserSession.TeacherSession -> {
                 Scaffold(
                     bottomBar = {
             if (currentScreen is Screen.Dashboard || currentScreen is Screen.Students || 
@@ -335,6 +345,8 @@ fun DashboardScreen(
     val cardNeutralBg = if (isDark) com.example.ui.theme.BentoCardNeutralDark else com.example.ui.theme.BentoCardNeutral
     val cardNeutralText = if (isDark) com.example.ui.theme.BentoTextNeutralDark else com.example.ui.theme.BentoTextNeutral
 
+    val currentSession by viewModel.currentSession.collectAsStateWithLifecycle()
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -345,7 +357,10 @@ fun DashboardScreen(
         // Welcoming Bento Header
         item {
             val dateLabel = SimpleDateFormat("EEEE, MMM dd", Locale.US).format(Date()).uppercase()
-            val tutorName = appConfig?.tutorName ?: "Tutor Aditi"
+            val tutorName = when (val session = currentSession) {
+                is UserSession.TeacherSession -> session.name
+                else -> appConfig?.tutorName ?: "Tutor Aditi"
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3347,6 +3362,43 @@ fun SettingsScreen(
                     Text("Seed Sample Demo Data")
                 }
             }
+
+            // Secure Session Logout
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    text = "SECURITY & SESSION MANAGEMENT",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Log out from the current tutor session securely. Your configurations, offline student records, and attendance history will remain saved on this device.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Button(
+                    onClick = {
+                        viewModel.logout()
+                        Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("btn_tutor_logout"),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.ExitToApp, contentDescription = "Exit icon")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Secure Logout")
+                }
+            }
         }
     }
 }
@@ -3515,6 +3567,420 @@ fun WhatsAppStyleNotification(
                     tint = Color.LightGray,
                     modifier = Modifier.size(16.dp)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun SplashScreen(viewModel: TuitionViewModel) {
+    val gradientBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+            MaterialTheme.colorScheme.background
+        )
+    )
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(2000)
+        viewModel.onSplashFinished()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(gradientBrush)
+            .testTag("splash_screen"),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Card(
+                shape = CircleShape,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                modifier = Modifier
+                    .size(100.dp)
+                    .padding(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "App Logo",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "EXCEL ACADEMICS",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 2.sp
+                ),
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Enterprise Tuition Suite",
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 1.sp
+                ),
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            )
+
+            Spacer(modifier = Modifier.height(48.dp))
+
+            CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.primary,
+                strokeWidth = 3.dp,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+
+        Text(
+            text = "SECURE ENTERPRISE CONNECT v2.4",
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.5.sp
+            ),
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 32.dp)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LoginScreen(viewModel: TuitionViewModel) {
+    var isTeacherRole by remember { mutableStateOf(true) }
+    
+    var teacherName by remember { mutableStateOf("") }
+    var passcode by remember { mutableStateOf("") }
+    
+    var studentEmailPhone by remember { mutableStateOf("") }
+    var studentPin by remember { mutableStateOf("") }
+    
+    var rememberMe by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    val gradientBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f),
+            MaterialTheme.colorScheme.background
+        )
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(gradientBrush)
+            .imePadding()
+            .testTag("login_screen")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(top = 48.dp, bottom = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                modifier = Modifier
+                    .size(72.dp)
+                    .padding(top = 8.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "Lock",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = "Welcome to Excel",
+                style = MaterialTheme.typography.headlineLarge.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-1).sp
+                ),
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Text(
+                text = "Sign in to manage your tuition dashboard or access student portal",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isTeacherRole) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        .clickable { 
+                            isTeacherRole = true 
+                            errorMessage = null
+                        }
+                        .padding(vertical = 12.dp)
+                        .testTag("role_teacher"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Tutor / Admin",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = if (isTeacherRole) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (!isTeacherRole) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        .clickable { 
+                            isTeacherRole = false 
+                            errorMessage = null
+                        }
+                        .padding(vertical = 12.dp)
+                        .testTag("role_student"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Student / Parent",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = if (!isTeacherRole) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    if (isTeacherRole) {
+                        OutlinedTextField(
+                            value = teacherName,
+                            onValueChange = { 
+                                teacherName = it
+                                errorMessage = null
+                            },
+                            label = { Text("Your Name") },
+                            placeholder = { Text("e.g. Ashutosh Gautam") },
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = "User Icon") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("teacher_name_input"),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        var isPasswordVisible by remember { mutableStateOf(false) }
+                        OutlinedTextField(
+                            value = passcode,
+                            onValueChange = { 
+                                passcode = it
+                                errorMessage = null
+                            },
+                            label = { Text("Passcode") },
+                            placeholder = { Text("Hint: ashutosh") },
+                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Key Icon") },
+                            trailingIcon = {
+                                IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                    Icon(
+                                        imageVector = if (isPasswordVisible) Icons.Default.Check else Icons.Default.Info,
+                                        contentDescription = "Toggle Visibility"
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("teacher_password_input"),
+                            singleLine = true,
+                            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    } else {
+                        OutlinedTextField(
+                            value = studentEmailPhone,
+                            onValueChange = { 
+                                studentEmailPhone = it
+                                errorMessage = null
+                            },
+                            label = { Text("Email or Phone") },
+                            placeholder = { Text("e.g. parent@email.com or +91...") },
+                            leadingIcon = { Icon(Icons.Default.Email, contentDescription = "Email/Phone Icon") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("student_email_phone_input"),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = studentPin,
+                            onValueChange = { 
+                                studentPin = it
+                                errorMessage = null
+                            },
+                            label = { Text("Student PIN / ID") },
+                            placeholder = { Text("e.g. last 4 digits of phone") },
+                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Pin Icon") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("student_pin_input"),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = rememberMe,
+                            onCheckedChange = { rememberMe = it },
+                            modifier = Modifier.testTag("checkbox_remember_me")
+                        )
+                        Text(
+                            text = "Keep me signed in",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage!!,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            if (isTeacherRole) {
+                                if (teacherName.isBlank()) {
+                                    errorMessage = "Please enter your welcome name."
+                                    return@Button
+                                }
+                                if (passcode.isBlank()) {
+                                    errorMessage = "Please enter your administrator passcode."
+                                    return@Button
+                                }
+                                isLoading = true
+                                val success = viewModel.loginAsTeacher(teacherName, passcode, rememberMe)
+                                isLoading = false
+                                if (!success) {
+                                    errorMessage = "Incorrect passcode. Use your administrator password."
+                                }
+                            } else {
+                                if (studentEmailPhone.isBlank() || studentPin.isBlank()) {
+                                    errorMessage = "Please enter email/phone and PIN."
+                                    return@Button
+                                }
+                                isLoading = true
+                                val success = viewModel.loginAsStudent(studentEmailPhone, studentPin, rememberMe)
+                                isLoading = false
+                                if (!success) {
+                                    errorMessage = "Invalid student credentials. Student phone/email and PIN do not match."
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .testTag("btn_login_submit"),
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !isLoading
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = "Secure Sign In",
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Info",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "First login? Enter your custom welcome name and passcode 'ashutosh' to initialize.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
             }
         }
     }

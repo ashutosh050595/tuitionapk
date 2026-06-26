@@ -36,7 +36,9 @@ sealed class EmailState {
 }
 
 sealed class UserSession {
-    object Teacher : UserSession()
+    object Splash : UserSession()
+    object LoggedOut : UserSession()
+    data class TeacherSession(val name: String) : UserSession()
     data class StudentSession(val student: Student) : UserSession()
 }
 
@@ -55,7 +57,7 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
     val appConfig: StateFlow<AppConfig?>
     val allNotifications: StateFlow<List<AppNotification>>
 
-    private val _currentSession = MutableStateFlow<UserSession>(UserSession.Teacher)
+    private val _currentSession = MutableStateFlow<UserSession>(UserSession.Splash)
     val currentSession: StateFlow<UserSession> = _currentSession.asStateFlow()
 
     private val _activeHeadsUpNotification = MutableStateFlow<AppNotification?>(null)
@@ -770,7 +772,78 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun login(emailOrPhone: String, pinOrId: String): Boolean {
+    fun checkRememberedSession() {
+        val isLoggedIn = sharedPrefs.getBoolean("logged_in", false)
+        val role = sharedPrefs.getString("logged_role", "")
+        if (isLoggedIn) {
+            if (role == "teacher") {
+                val name = sharedPrefs.getString("teacher_name", "Tutor") ?: "Tutor"
+                _currentSession.value = UserSession.TeacherSession(name)
+            } else if (role == "student") {
+                val studentId = sharedPrefs.getLong("student_id", -1L)
+                if (studentId != -1L) {
+                    val student = allStudents.value.find { it.id == studentId }
+                    if (student != null) {
+                        _currentSession.value = UserSession.StudentSession(student)
+                    } else {
+                        _currentSession.value = UserSession.LoggedOut
+                    }
+                } else {
+                    _currentSession.value = UserSession.LoggedOut
+                }
+            } else {
+                _currentSession.value = UserSession.LoggedOut
+            }
+        } else {
+            _currentSession.value = UserSession.LoggedOut
+        }
+    }
+
+    fun onSplashFinished() {
+        checkRememberedSession()
+    }
+
+    fun loginAsTeacher(name: String, pin: String, rememberMe: Boolean = false): Boolean {
+        val trimmedName = name.trim()
+        val trimmedPin = pin.trim()
+        
+        // Validation for tutor/admin with password "ashutosh" (or case-insensitive) or "admin"
+        if (trimmedPin == "ashutosh" || trimmedPin.lowercase() == "ashutosh" || trimmedPin == "admin") {
+            viewModelScope.launch {
+                val current = repository.getAppConfigDirect()
+                if (current != null) {
+                    repository.insertAppConfig(current.copy(tutorName = trimmedName))
+                } else {
+                    repository.insertAppConfig(
+                        AppConfig(
+                            id = 1,
+                            tutorName = trimmedName,
+                            tuitionName = "Excel Home Tuition Academics",
+                            address = "A-24, Sector 15, Dwarka, New Delhi - 110075",
+                            phone = "+91 98765 43210",
+                            email = "aditi.sharma@excelacademy.com",
+                            receiptPrefix = "EXT",
+                            nextReceiptNo = 1001
+                        )
+                    )
+                }
+            }
+            
+            _currentSession.value = UserSession.TeacherSession(trimmedName)
+            
+            if (rememberMe) {
+                sharedPrefs.edit()
+                    .putBoolean("logged_in", true)
+                    .putString("logged_role", "teacher")
+                    .putString("teacher_name", trimmedName)
+                    .apply()
+            }
+            return true
+        }
+        return false
+    }
+
+    fun loginAsStudent(emailOrPhone: String, pinOrId: String, rememberMe: Boolean = false): Boolean {
         val normalizedUser = emailOrPhone.trim().lowercase()
         val normalizedPin = pinOrId.trim()
         val student = allStudents.value.find { student ->
@@ -779,13 +852,30 @@ class TuitionViewModel(application: Application) : AndroidViewModel(application)
         }
         if (student != null) {
             _currentSession.value = UserSession.StudentSession(student)
+            if (rememberMe) {
+                sharedPrefs.edit()
+                    .putBoolean("logged_in", true)
+                    .putString("logged_role", "student")
+                    .putLong("student_id", student.id)
+                    .apply()
+            }
             return true
         }
         return false
     }
 
+    fun login(emailOrPhone: String, pinOrId: String): Boolean {
+        return loginAsStudent(emailOrPhone, pinOrId, false)
+    }
+
     fun logout() {
-        _currentSession.value = UserSession.Teacher
+        _currentSession.value = UserSession.LoggedOut
+        sharedPrefs.edit()
+            .putBoolean("logged_in", false)
+            .putString("logged_role", "")
+            .putString("teacher_name", "")
+            .putLong("student_id", -1L)
+            .apply()
     }
 
     fun dismissHeadsUpNotification() {
